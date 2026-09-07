@@ -1,0 +1,38 @@
+-- The C compiler identification is GNU 11.4.0
+-- The CXX compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 1.3.14 (/home/ahmed/ros2_humble/install/ament_cmake/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/ahmed/ros2_robot_arm_ws/build/robot_arm_description
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/urdf/.gitkeep
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/launch/.gitkeep
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/rviz/.gitkeep
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/ament_index/resource_index/package_run_dependencies/robot_arm_description
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/ament_index/resource_index/parent_prefix_path/robot_arm_description
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/environment/ament_prefix_path.sh
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/environment/ament_prefix_path.dsv
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/environment/path.sh
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/environment/path.dsv
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/local_setup.bash
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/local_setup.sh
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/local_setup.zsh
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/local_setup.dsv
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/package.dsv
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/ament_index/resource_index/packages/robot_arm_description
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/cmake/robot_arm_descriptionConfig.cmake
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/cmake/robot_arm_descriptionConfig-version.cmake
+-- Symlinking: /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/package.xml
