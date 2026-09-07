@@ -1,5 +1,6 @@
 /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/urdf/.gitkeep
 /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/urdf/robot.urdf.xacro
+/home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/urdf/ros2_control.xacro
 /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/launch/.gitkeep
 /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/launch/display.launch.py
 /home/ahmed/ros2_robot_arm_ws/install/robot_arm_description/share/robot_arm_description/launch/gazebo.launch.py

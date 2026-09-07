@@ -1,0 +1,60 @@
+# ============================================================
+# ros2_control configuration for the 6-DOF arm
+#
+# Read by the Gazebo plugin at spawn time. Two controllers:
+#   joint_state_broadcaster  reads joint states, publishes them
+#   arm_controller           accepts trajectories, commands joints
+# ============================================================
+
+controller_manager:
+  ros__parameters:
+    # How many times per second the control loop runs.
+    # Must be >= the simulation step rate to avoid missed updates.
+    update_rate: 100  # Hz
+
+    use_sim_time: true
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
+# ============================================================
+# arm_controller
+# Joint order here defines the order used in every trajectory
+# message. Get it wrong and joints move to each other's targets.
+# ============================================================
+arm_controller:
+  ros__parameters:
+    joints:
+      - joint_1
+      - joint_2
+      - joint_3
+      - joint_4
+      - joint_5
+      - joint_6
+
+    # What the controller writes to the hardware
+    command_interfaces:
+      - position
+
+    # What the controller reads back
+    state_interfaces:
+      - position
+      - velocity
+
+    # Allows commanding a subset of joints. Essential for
+    # single-joint testing.
+    allow_partial_joints_goal: true
+
+    # Publish the controller's own state for debugging
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+
+    constraints:
+      # How long after the trajectory ends the controller waits
+      # for joints to settle before declaring failure
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05

@@ -38,11 +38,9 @@ def generate_launch_description() -> LaunchDescription:
     rviz_config = os.path.join(pkg_share, 'rviz', 'display.rviz')
 
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file]),
+        Command(['xacro ', xacro_file, ' use_ros2_control:=false']),
         value_type=str,
-    )
-
-    # Slider window. Publishes /joint_states for every non-fixed joint.
+    )    # Slider window. Publishes /joint_states for every non-fixed joint.
     # Without this, /joint_states stays empty and TF only shows the two
     # fixed joints - which is exactly what view_frames reported earlier.
     joint_state_publisher_gui = Node(

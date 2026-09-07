@@ -14,6 +14,14 @@
        sits at the parent link's length. This keeps the chain readable.
        ================================================================== -->
 
+  <!-- ============== ARGUMENTS ========================================
+       use_ros2_control:
+         true   for Gazebo - loads the IgnitionSystem hardware interface
+         false  for RViz with sliders - the slider GUI publishes
+                /joint_states instead, and the two must never both run
+       ================================================================== -->
+  <xacro:arg name="use_ros2_control" default="true"/>
+
   <!-- ============== DIMENSIONS (edit these to resize the arm) ========= -->
   <xacro:property name="base_radius" value="0.10"/>
   <xacro:property name="base_length" value="0.06"/>
@@ -217,5 +225,20 @@
     <child  link="end_effector"/>
     <origin xyz="0 0 ${l6_length}" rpy="0 0 0"/>
   </joint>
+
+  <!-- ============== ros2_control =====================================
+       Must come AFTER every joint is defined, because the hardware
+       interface refers to those joints by name.
+
+       Skipped entirely when use_ros2_control is false, so that
+       display.launch.py can use the slider GUI without two things
+       fighting over /joint_states.
+       ================================================================== -->
+  <xacro:include filename="$(find robot_arm_description)/urdf/ros2_control.xacro"/>
+
+  <xacro:if value="$(arg use_ros2_control)">
+    <xacro:arm_ros2_control
+      controllers_file="$(find robot_arm_control)/config/controllers.yaml"/>
+  </xacro:if>
 
 </robot>

@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================================================================
+       ros2_control HARDWARE INTERFACE
+
+       Declares what ros2_control is allowed to do with each joint:
+
+         command_interface  what we can WRITE to  (position commands)
+         state_interface    what we can READ     (position, velocity, effort)
+
+       The plugin ign_ros2_control/IgnitionSystem connects these
+       interfaces to the actual joints inside Gazebo Fortress.
+       ================================================================== -->
+
+  <!-- One joint's interface block. Written once, used six times. -->
+  <xacro:macro name="arm_joint_interface" params="name lower upper">
+    <joint name="${name}">
+
+      <!-- We command position. The min/max here are a safety clamp
+           inside ros2_control, separate from the URDF joint limits. -->
+      <command_interface name="position">
+        <param name="min">${lower}</param>
+        <param name="max">${upper}</param>
+      </command_interface>
+
+      <!-- What we can read back from the simulated joint. -->
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="arm_ros2_control" params="controllers_file">
+
+    <ros2_control name="RobotArmSystem" type="system">
+      <hardware>
+        <!-- Fortress. NOT gazebo_ros2_control, that is Gazebo Classic. -->
+        <plugin>ign_ros2_control/IgnitionSystem</plugin>
+      </hardware>
+
+      <xacro:arm_joint_interface name="joint_1" lower="-3.14159" upper="3.14159"/>
+      <xacro:arm_joint_interface name="joint_2" lower="-2.0944"  upper="2.0944"/>
+      <xacro:arm_joint_interface name="joint_3" lower="-2.6180"  upper="2.6180"/>
+      <xacro:arm_joint_interface name="joint_4" lower="-3.14159" upper="3.14159"/>
+      <xacro:arm_joint_interface name="joint_5" lower="-2.0944"  upper="2.0944"/>
+      <xacro:arm_joint_interface name="joint_6" lower="-3.14159" upper="3.14159"/>
+    </ros2_control>
+
+    <!-- The Gazebo-side plugin that actually runs the controller_manager
+         inside the simulator process. It reads controllers.yaml to know
+         which controllers exist. -->
+    <gazebo>
+      <plugin filename="libign_ros2_control-system.so"
+              name="ign_ros2_control::IgnitionROS2ControlPlugin">
+        <parameters>${controllers_file}</parameters>
+        <controller_manager_name>controller_manager</controller_manager_name>
+      </plugin>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>
