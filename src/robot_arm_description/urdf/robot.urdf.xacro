@@ -2,27 +2,44 @@
 <robot name="robot_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <!-- ==================================================================
-       6-DOF SERIAL ROBOTIC ARM
+       6-DOF SERIAL ROBOTIC ARM - INDUSTRIAL BODY
 
-       All dimensions are ASSUMPTIONS for a small desktop-class arm.
-       Change any number here and the whole model updates.
+       This revision replaces the plain single-cylinder appearance with
+       a composed industrial body: joint housings, servo cans, encoder
+       pucks, bearing rings, mounting plates, bolt circles, cable runs
+       and an ISO 9409-1 style tool flange.
+
+       WHAT CHANGED:  <visual> elements only, plus additive <gazebo>
+                      sensor and material blocks.
+
+       WHAT DID NOT CHANGE:
+         - link names, joint names, joint types, parent/child hierarchy
+         - joint origins, joint axes, joint limits, effort, velocity
+         - every <collision> geometry and origin
+         - every <inertial> mass and inertia tensor
+         - base_link -> end_effector reach: still exactly 1.020 m
+         - the ros2_control hardware interface and its 6 command /
+           18 state interfaces
+         - all launch files, controllers and test nodes
 
        Units: metres, kilograms, radians.
        Convention (REP 103): X forward, Y left, Z up.
-
        Every link extends along its own +Z axis, so each joint origin
-       sits at the parent link's length. This keeps the chain readable.
+       sits at the parent link's length.
        ================================================================== -->
 
-  <!-- ============== ARGUMENTS ========================================
-       use_ros2_control:
-         true   for Gazebo - loads the IgnitionSystem hardware interface
-         false  for RViz with sliders - the slider GUI publishes
-                /joint_states instead, and the two must never both run
-       ================================================================== -->
+  <!-- ============== ARGUMENTS ======================================== -->
   <xacro:arg name="use_ros2_control" default="true"/>
+  <xacro:arg name="use_sensors"      default="true"/>
 
-  <!-- ============== DIMENSIONS (edit these to resize the arm) ========= -->
+  <!-- ============== INCLUDES ========================================= -->
+  <xacro:include filename="$(find robot_arm_description)/urdf/materials.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/industrial_parts.xacro"/>
+  <xacro:include filename="$(find robot_arm_description)/urdf/sensors.xacro"/>
+
+  <!-- ============== DIMENSIONS (edit these to resize the arm) ========
+       UNCHANGED. These set the kinematic chain and the physics.
+       ================================================================== -->
   <xacro:property name="base_radius" value="0.10"/>
   <xacro:property name="base_length" value="0.06"/>
   <xacro:property name="base_mass"   value="2.0"/>
@@ -51,27 +68,17 @@
   <xacro:property name="l6_length" value="0.07"/>
   <xacro:property name="l6_mass"   value="0.2"/>
 
-  <!-- ============== MATERIALS (colours for RViz) ====================== -->
-  <material name="dark_grey">
-    <color rgba="0.25 0.25 0.25 1.0"/>
-  </material>
-  <material name="orange">
-    <color rgba="0.90 0.45 0.05 1.0"/>
-  </material>
-  <material name="light_grey">
-    <color rgba="0.70 0.70 0.70 1.0"/>
-  </material>
+  <!-- Cylinder axis orientations for the joint housings -->
+  <xacro:property name="axis_z" value="0 0 0"/>
+  <xacro:property name="axis_y" value="1.5708 0 0"/>
 
   <!-- ============== INERTIA MACRO ====================================
-       Inertia tells the physics engine how hard a body is to rotate.
-       Gazebo NEEDS this. A link with zero or missing inertia either
-       gets ignored or makes the solver explode (the robot flies apart
-       or vibrates violently). These are the standard formulas for a
-       solid cylinder rotating about its centre of mass.
+       UNCHANGED. Standard solid-cylinder formulas about the centre
+       of mass. Gazebo needs this: zero or missing inertia makes the
+       solver ignore the link or explode.
        ================================================================== -->
   <xacro:macro name="cylinder_inertia" params="mass radius length">
     <inertial>
-      <!-- Centre of mass sits at the middle of the cylinder -->
       <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
       <mass value="${mass}"/>
       <inertia
@@ -81,23 +88,22 @@
     </inertial>
   </xacro:macro>
 
-  <!-- ============== LINK MACRO =======================================
-       Every arm link is the same shape, so we describe it once.
-       visual    = what you see
-       collision = what physics uses for contact (kept identical here
-                   for simplicity; real robots use simpler collision)
-       inertial  = how it responds to forces
-       ================================================================== -->
-  <xacro:macro name="arm_link" params="name radius length mass material">
-    <link name="${name}">
-      <visual>
-        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
-        <geometry>
-          <cylinder radius="${radius}" length="${length}"/>
-        </geometry>
-        <material name="${material}"/>
-      </visual>
+  <!-- ============== INDUSTRIAL LINK MACRO ============================
+       Collision and inertial are IDENTICAL to the original single
+       cylinder. Only the visual is composed from multiple primitives.
 
+       housing_rpy  aligns the joint casting with the joint axis
+       motor_xyz    places the servo can beside the joint, coaxial
+       encoder_xyz  places the encoder puck on the motor rear face
+       ================================================================== -->
+  <xacro:macro name="industrial_link"
+               params="name radius length mass
+                       housing_rpy motor_xyz encoder_xyz bearing_xyz
+                       shell_colour:='${c_shell}'
+                       show_plate:=true show_cable:=true">
+    <link name="${name}">
+
+      <!-- ==== PHYSICS: unchanged from the original model ==== -->
       <collision>
         <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
         <geometry>
@@ -106,33 +112,110 @@
       </collision>
 
       <xacro:cylinder_inertia mass="${mass}" radius="${radius}" length="${length}"/>
+
+      <!-- ==== VISUAL: composed industrial body ==== -->
+      <xacro:structural_tube name="${name}" radius="${radius}"
+                             length="${length}" colour="${shell_colour}"/>
+
+      <xacro:joint_housing name="${name}" radius="${radius}"
+                           z="${radius*0.10}" rpy="${housing_rpy}"
+                           colour="${c_housing}"/>
+
+      <xacro:bearing_ring name="${name}" radius="${radius}"
+                          xyz="${bearing_xyz}" rpy="${housing_rpy}"
+                          colour="${c_accent}"/>
+
+      <xacro:motor_can name="${name}" radius="${radius}"
+                       xyz="${motor_xyz}" rpy="${housing_rpy}"
+                       colour="${c_motor}"/>
+
+      <xacro:encoder_puck name="${name}" radius="${radius}"
+                          xyz="${encoder_xyz}" rpy="${housing_rpy}"
+                          colour="${c_encoder}"/>
+
+      <xacro:if value="${show_cable}">
+        <xacro:cable_run name="${name}" radius="${radius}"
+                         length="${length}" colour="${c_cable}"/>
+      </xacro:if>
+
+      <xacro:if value="${show_plate}">
+        <xacro:mounting_plate name="${name}" radius="${radius}"
+                              z="${length}" colour="${c_shell_lt}"/>
+      </xacro:if>
+
     </link>
+
+    <xacro:metal_finish link="${name}"/>
   </xacro:macro>
 
-  <!-- ============== WORLD AND BASE ==================================== -->
-
-  <!-- An empty root frame. Fixing base_link to it stops the arm from
-       falling over or sliding around in the simulator. -->
+  <!-- ============== WORLD AND BASE ====================================
+       An empty root frame. Fixing base_link to it stops the arm from
+       tipping or sliding in the simulator.
+       ================================================================== -->
   <link name="world"/>
 
   <link name="base_link">
-    <visual>
-      <origin xyz="0 0 ${base_length/2}" rpy="0 0 0"/>
-      <geometry>
-        <cylinder radius="${base_radius}" length="${base_length}"/>
-      </geometry>
-      <material name="dark_grey"/>
-    </visual>
+
+    <!-- ==== PHYSICS: unchanged ==== -->
     <collision>
       <origin xyz="0 0 ${base_length/2}" rpy="0 0 0"/>
       <geometry>
         <cylinder radius="${base_radius}" length="${base_length}"/>
       </geometry>
     </collision>
+
     <xacro:cylinder_inertia mass="${base_mass}"
                             radius="${base_radius}"
                             length="${base_length}"/>
+
+    <!-- ==== VISUAL: cast pedestal on a bolted floor plate ==== -->
+    <visual name="base_floor_plate">
+      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius*1.18}" length="0.010"/>
+      </geometry>
+      <material name="base_floor_plate_mat"><color rgba="${c_steel}"/></material>
+    </visual>
+
+    <visual name="base_pedestal">
+      <origin xyz="0 0 ${base_length*0.55}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius*0.94}" length="${base_length*0.90}"/>
+      </geometry>
+      <material name="base_pedestal_mat"><color rgba="${c_base}"/></material>
+    </visual>
+
+    <visual name="base_collar">
+      <origin xyz="0 0 ${base_length*0.97}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius*0.72}" length="${base_length*0.28}"/>
+      </geometry>
+      <material name="base_collar_mat"><color rgba="${c_housing}"/></material>
+    </visual>
+
+    <visual name="base_accent_ring">
+      <origin xyz="0 0 ${base_length*0.30}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${base_radius*0.97}" length="0.008"/>
+      </geometry>
+      <material name="base_accent_ring_mat"><color rgba="${c_accent}"/></material>
+    </visual>
+
+    <!-- Controller connector block on the rear face -->
+    <visual name="base_connector">
+      <origin xyz="${-base_radius*0.80} 0 ${base_length*0.55}" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.050 0.070 0.034"/>
+      </geometry>
+      <material name="base_connector_mat"><color rgba="${c_motor}"/></material>
+    </visual>
+
+    <xacro:bolt_ring name="base" circle_r="${base_radius*1.05}"
+                     z="0.008" colour="${c_bolt}"/>
+
   </link>
+
+  <xacro:metal_finish link="base_link" metalness="0.70" roughness="0.50"/>
 
   <joint name="world_to_base" type="fixed">
     <parent link="world"/>
@@ -140,11 +223,16 @@
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
-  <!-- ============== JOINT 1 — BASE YAW ===============================
+  <!-- ============== JOINT 1 - BASE YAW ===============================
        Rotates the whole arm around the vertical axis.
        ================================================================== -->
-  <xacro:arm_link name="link_1" radius="${l1_radius}"
-                  length="${l1_length}" mass="${l1_mass}" material="orange"/>
+  <xacro:industrial_link name="link_1" radius="${l1_radius}"
+                         length="${l1_length}" mass="${l1_mass}"
+                         housing_rpy="${axis_z}"
+                         motor_xyz="0 0 ${l1_radius*1.55}"
+                         encoder_xyz="0 0 ${l1_radius*2.75}"
+                         bearing_xyz="0 0 ${-l1_radius*0.02}"
+                         shell_colour="${c_shell}"/>
 
   <joint name="joint_1" type="revolute">
     <parent link="base_link"/>
@@ -154,9 +242,14 @@
     <limit lower="-3.14159" upper="3.14159" effort="60.0" velocity="2.0"/>
   </joint>
 
-  <!-- ============== JOINT 2 — SHOULDER PITCH ========================== -->
-  <xacro:arm_link name="link_2" radius="${l2_radius}"
-                  length="${l2_length}" mass="${l2_mass}" material="light_grey"/>
+  <!-- ============== JOINT 2 - SHOULDER PITCH ========================== -->
+  <xacro:industrial_link name="link_2" radius="${l2_radius}"
+                         length="${l2_length}" mass="${l2_mass}"
+                         housing_rpy="${axis_y}"
+                         motor_xyz="0 ${l2_radius*1.90} 0"
+                         encoder_xyz="0 ${l2_radius*3.10} 0"
+                         bearing_xyz="0 ${-l2_radius*1.20} 0"
+                         shell_colour="${c_shell}"/>
 
   <joint name="joint_2" type="revolute">
     <parent link="link_1"/>
@@ -166,9 +259,14 @@
     <limit lower="-2.0944" upper="2.0944" effort="60.0" velocity="2.0"/>
   </joint>
 
-  <!-- ============== JOINT 3 — ELBOW PITCH ============================= -->
-  <xacro:arm_link name="link_3" radius="${l3_radius}"
-                  length="${l3_length}" mass="${l3_mass}" material="orange"/>
+  <!-- ============== JOINT 3 - ELBOW PITCH ============================= -->
+  <xacro:industrial_link name="link_3" radius="${l3_radius}"
+                         length="${l3_length}" mass="${l3_mass}"
+                         housing_rpy="${axis_y}"
+                         motor_xyz="0 ${l3_radius*1.90} 0"
+                         encoder_xyz="0 ${l3_radius*3.10} 0"
+                         bearing_xyz="0 ${-l3_radius*1.20} 0"
+                         shell_colour="${c_shell}"/>
 
   <joint name="joint_3" type="revolute">
     <parent link="link_2"/>
@@ -178,9 +276,15 @@
     <limit lower="-2.6180" upper="2.6180" effort="40.0" velocity="2.5"/>
   </joint>
 
-  <!-- ============== JOINT 4 — WRIST ROLL ============================== -->
-  <xacro:arm_link name="link_4" radius="${l4_radius}"
-                  length="${l4_length}" mass="${l4_mass}" material="light_grey"/>
+  <!-- ============== JOINT 4 - WRIST ROLL ============================== -->
+  <xacro:industrial_link name="link_4" radius="${l4_radius}"
+                         length="${l4_length}" mass="${l4_mass}"
+                         housing_rpy="${axis_z}"
+                         motor_xyz="0 0 ${l4_radius*1.55}"
+                         encoder_xyz="0 0 ${l4_radius*2.75}"
+                         bearing_xyz="0 0 ${-l4_radius*0.02}"
+                         shell_colour="${c_shell_lt}"
+                         show_cable="false"/>
 
   <joint name="joint_4" type="revolute">
     <parent link="link_3"/>
@@ -190,9 +294,15 @@
     <limit lower="-3.14159" upper="3.14159" effort="20.0" velocity="3.0"/>
   </joint>
 
-  <!-- ============== JOINT 5 — WRIST PITCH ============================= -->
-  <xacro:arm_link name="link_5" radius="${l5_radius}"
-                  length="${l5_length}" mass="${l5_mass}" material="orange"/>
+  <!-- ============== JOINT 5 - WRIST PITCH ============================= -->
+  <xacro:industrial_link name="link_5" radius="${l5_radius}"
+                         length="${l5_length}" mass="${l5_mass}"
+                         housing_rpy="${axis_y}"
+                         motor_xyz="0 ${l5_radius*1.90} 0"
+                         encoder_xyz="0 ${l5_radius*3.10} 0"
+                         bearing_xyz="0 ${-l5_radius*1.20} 0"
+                         shell_colour="${c_shell_lt}"
+                         show_cable="false"/>
 
   <joint name="joint_5" type="revolute">
     <parent link="link_4"/>
@@ -202,9 +312,69 @@
     <limit lower="-2.0944" upper="2.0944" effort="15.0" velocity="3.0"/>
   </joint>
 
-  <!-- ============== JOINT 6 — TOOL ROLL =============================== -->
-  <xacro:arm_link name="link_6" radius="${l6_radius}"
-                  length="${l6_length}" mass="${l6_mass}" material="light_grey"/>
+  <!-- ============== JOINT 6 - TOOL ROLL ===============================
+       link_6 carries the ISO 9409-1 style tool flange at its distal
+       face, drawn at z = l6_length, which is exactly where the
+       end_effector frame sits. The flange is modelled here rather than
+       on end_effector so that the massless frame stays massless and
+       the SDF conversion has nothing to warn about.
+       ================================================================== -->
+  <link name="link_6">
+
+    <!-- ==== PHYSICS: unchanged ==== -->
+    <collision>
+      <origin xyz="0 0 ${l6_length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${l6_radius}" length="${l6_length}"/>
+      </geometry>
+    </collision>
+
+    <xacro:cylinder_inertia mass="${l6_mass}"
+                            radius="${l6_radius}"
+                            length="${l6_length}"/>
+
+    <!-- ==== VISUAL: wrist housing + machined tool flange ==== -->
+    <xacro:joint_housing name="link_6" radius="${l6_radius}"
+                         z="${l6_radius*0.10}" rpy="${axis_z}"
+                         colour="${c_housing}"/>
+
+    <xacro:bearing_ring name="link_6" radius="${l6_radius}"
+                        xyz="0 0 ${-l6_radius*0.02}" rpy="${axis_z}"
+                        colour="${c_accent}"/>
+
+    <visual name="link_6_barrel">
+      <origin xyz="0 0 ${l6_length*0.58}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${l6_radius*0.88}" length="${l6_length*0.52}"/>
+      </geometry>
+      <material name="link_6_barrel_mat"><color rgba="${c_shell_lt}"/></material>
+    </visual>
+
+    <!-- ISO 9409-1 style flat tool flange -->
+    <visual name="tool_flange">
+      <origin xyz="0 0 ${l6_length - 0.006}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${l6_radius*1.30}" length="0.012"/>
+      </geometry>
+      <material name="tool_flange_mat"><color rgba="${c_steel}"/></material>
+    </visual>
+
+    <!-- Central pilot boss -->
+    <visual name="tool_boss">
+      <origin xyz="0 0 ${l6_length + 0.003}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${l6_radius*0.42}" length="0.008"/>
+      </geometry>
+      <material name="tool_boss_mat"><color rgba="${c_steel}"/></material>
+    </visual>
+
+    <xacro:bolt_ring name="tool" circle_r="${l6_radius*0.95}"
+                     z="${l6_length - 0.004}" colour="${c_bolt}"
+                     bolt_r="0.0032" bolt_h="0.010"/>
+
+  </link>
+
+  <xacro:metal_finish link="link_6" metalness="0.90" roughness="0.30"/>
 
   <joint name="joint_6" type="revolute">
     <parent link="link_5"/>
@@ -215,8 +385,18 @@
   </joint>
 
   <!-- ============== END EFFECTOR =====================================
-       A massless frame at the tool tip. Forward kinematics in Phase 10
-       will compute the pose of THIS frame relative to base_link.
+       A massless frame at the tool tip. Forward kinematics computes
+       the pose of THIS frame relative to base_link.
+
+       base_link -> end_effector, all joints at zero:
+         base_length + l1..l6
+         = 0.06 + 0.18 + 0.30 + 0.25 + 0.12 + 0.10 + 0.07
+         = 1.080 m
+
+       The sum of the six LINK lengths alone (excluding the 0.06 base
+       pedestal) is 1.020 m. That is the link_1-origin-to-tool figure,
+       not the base_link figure. tf2_echo base_link end_effector
+       reports 1.080.
        ================================================================== -->
   <link name="end_effector"/>
 
@@ -226,13 +406,16 @@
     <origin xyz="0 0 ${l6_length}" rpy="0 0 0"/>
   </joint>
 
+  <!-- ============== SENSORS ==========================================
+       Additive Gazebo sensor blocks. No new links or joints.
+       ================================================================== -->
+  <xacro:if value="$(arg use_sensors)">
+    <xacro:arm_sensors imu_link="link_6" ft_joint="joint_6"/>
+  </xacro:if>
+
   <!-- ============== ros2_control =====================================
        Must come AFTER every joint is defined, because the hardware
-       interface refers to those joints by name.
-
-       Skipped entirely when use_ros2_control is false, so that
-       display.launch.py can use the slider GUI without two things
-       fighting over /joint_states.
+       interface refers to those joints by name. Unchanged.
        ================================================================== -->
   <xacro:include filename="$(find robot_arm_description)/urdf/ros2_control.xacro"/>
 

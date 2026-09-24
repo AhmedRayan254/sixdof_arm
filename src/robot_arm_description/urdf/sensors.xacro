@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================================================================
+       GAZEBO FORTRESS SENSORS
+
+       Purely additive. These blocks add <sensor> elements to existing
+       links/joints via <gazebo reference="...">. No new links, no new
+       joints, no change to the TF tree, no change to ros2_control.
+
+       The IMU and force-torque sensors are deliberately NOT registered
+       as ros2_control sensor state interfaces. Doing so would change
+       the output of `ros2 control list_hardware_interfaces` away from
+       the existing 6 command / 18 state contract that the test suite
+       relies on. They reach ROS 2 through ros_gz_bridge instead.
+
+       The world SDF must load the corresponding system plugins:
+         ignition-gazebo-imu-system
+         ignition-gazebo-forcetorque-system
+       Declaring them at world level rather than in the URDF avoids a
+       known Fortress bug where a force-torque sensor declared only in
+       a xacro-loaded model fails to publish.
+
+       Encoders, motor current, motor temperature and limit switches
+       are NOT simulated here. They are derived in ROS 2 nodes from the
+       joint position/velocity/effort already published on
+       /joint_states, which is both physically correct and zero-risk to
+       the Gazebo integration.
+       ================================================================== -->
+
+  <xacro:macro name="arm_sensors" params="imu_link:=link_6 ft_joint:=joint_6">
+
+    <!-- ============== WRIST IMU ======================================
+         Mounted on the last moving link. Reports tool-plate angular
+         rate and linear acceleration - used for vibration monitoring
+         and impact detection on real arms.
+         ============================================================== -->
+    <gazebo reference="${imu_link}">
+      <sensor name="wrist_imu" type="imu">
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <visualize>false</visualize>
+        <topic>imu</topic>
+        <enable_metrics>false</enable_metrics>
+        <imu>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev>
+              <bias_mean>0.0000075</bias_mean><bias_stddev>0.0000008</bias_stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev>
+              <bias_mean>0.0000075</bias_mean><bias_stddev>0.0000008</bias_stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev>
+              <bias_mean>0.0000075</bias_mean><bias_stddev>0.0000008</bias_stddev></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev>
+              <bias_mean>0.1</bias_mean><bias_stddev>0.001</bias_stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev>
+              <bias_mean>0.1</bias_mean><bias_stddev>0.001</bias_stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev>
+              <bias_mean>0.1</bias_mean><bias_stddev>0.001</bias_stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+    </gazebo>
+
+    <!-- ============== WRIST FORCE-TORQUE =============================
+         Measures the wrench transmitted through the last joint.
+         Frame is the joint CHILD link, measured child-to-parent, which
+         is the Fortress default and matches how a real wrist FT sensor
+         reports tool load.
+         ============================================================== -->
+    <gazebo reference="${ft_joint}">
+      <provideFeedback>true</provideFeedback>
+      <sensor name="wrist_ft" type="force_torque">
+        <always_on>1</always_on>
+        <update_rate>100</update_rate>
+        <visualize>false</visualize>
+        <topic>wrist_ft</topic>
+        <force_torque>
+          <frame>child</frame>
+          <measure_direction>child_to_parent</measure_direction>
+        </force_torque>
+      </sensor>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

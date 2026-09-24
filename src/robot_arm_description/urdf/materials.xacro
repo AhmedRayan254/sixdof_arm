@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================================================================
+       INDUSTRIAL COLOUR PALETTE
+
+       RGBA strings only. They are inlined into each <visual> rather
+       than declared as global named materials, because sdformat_urdf
+       resolves per-visual colour reliably while global named material
+       references are not guaranteed to survive URDF -> SDF conversion
+       in Gazebo Fortress.
+
+       Gazebo Fortress ignores the Gazebo Classic
+       <gazebo><material>Gazebo/Orange</material></gazebo> syntax
+       entirely. Colour must come from URDF <color rgba> (converted as
+       0.4*ambient + 0.8*diffuse) or from an SDF <material> block with
+       <ambient>/<diffuse>/<specular>.
+
+       Scheme: UR-style silver shells, graphite joint housings and
+       motor caps, blue accent rings, machined-steel flange.
+       ================================================================== -->
+
+  <xacro:property name="c_shell"    value="0.529 0.522 0.506 1.0"/>
+  <xacro:property name="c_shell_lt" value="0.640 0.636 0.622 1.0"/>
+  <xacro:property name="c_housing"  value="0.130 0.133 0.140 1.0"/>
+  <xacro:property name="c_motor"    value="0.075 0.078 0.082 1.0"/>
+  <xacro:property name="c_accent"   value="0.043 0.541 0.780 1.0"/>
+  <xacro:property name="c_steel"    value="0.760 0.770 0.780 1.0"/>
+  <xacro:property name="c_bolt"     value="0.290 0.300 0.310 1.0"/>
+  <xacro:property name="c_cable"    value="0.045 0.045 0.050 1.0"/>
+  <xacro:property name="c_base"     value="0.220 0.225 0.232 1.0"/>
+  <xacro:property name="c_encoder"  value="0.620 0.180 0.110 1.0"/>
+
+  <!-- Fortress-side surface finish. Applied per link. These blocks set
+       specular/PBR only; the per-visual URDF colours above still drive
+       the two-tone appearance. -->
+  <xacro:macro name="metal_finish" params="link metalness:=0.85 roughness:=0.38">
+    <gazebo reference="${link}">
+      <visual>
+        <material>
+          <specular>0.90 0.90 0.92 1.0</specular>
+          <emissive>0 0 0 1</emissive>
+          <pbr>
+            <metal>
+              <metalness>${metalness}</metalness>
+              <roughness>${roughness}</roughness>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+    </gazebo>
+  </xacro:macro>
+
+</robot>

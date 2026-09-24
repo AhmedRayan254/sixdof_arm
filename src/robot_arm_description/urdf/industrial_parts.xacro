@@ -1,0 +1,152 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==================================================================
+       INDUSTRIAL DETAIL MACROS
+
+       Every macro in this file emits <visual> elements ONLY.
+
+       Visual geometry has no effect on physics in Gazebo. Only
+       <collision> and <inertial> do. Nothing here alters mass,
+       inertia, joint origins, joint axes or link lengths, so the
+       kinematic chain and all dynamics stay bit-identical to the
+       original cylinder model.
+       ================================================================== -->
+
+  <!-- ===============================================================
+       Structural tube: the load-bearing body of a link.
+       Slightly thinner than the collision cylinder so housings read
+       as separate castings rather than one continuous rod.
+       =============================================================== -->
+  <xacro:macro name="structural_tube" params="name radius length colour">
+    <visual name="${name}_tube">
+      <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${radius*0.82}" length="${length*0.96}"/>
+      </geometry>
+      <material name="${name}_tube_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Joint housing: the casting that wraps a revolute joint.
+       rpy must align the cylinder axis with the JOINT axis:
+         "0 0 0"        -> Z-aligned  (roll joints 1, 4, 6)
+         "1.5708 0 0"   -> Y-aligned  (pitch joints 2, 3, 5)
+       =============================================================== -->
+  <xacro:macro name="joint_housing" params="name radius z rpy colour">
+    <visual name="${name}_housing">
+      <origin xyz="0 0 ${z}" rpy="${rpy}"/>
+      <geometry>
+        <cylinder radius="${radius*1.52}" length="${radius*2.30}"/>
+      </geometry>
+      <material name="${name}_housing_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Bearing ring: thin bright ring at the housing parting line.
+       =============================================================== -->
+  <xacro:macro name="bearing_ring" params="name radius xyz rpy colour">
+    <visual name="${name}_bearing">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <cylinder radius="${radius*1.56}" length="${radius*0.30}"/>
+      </geometry>
+      <material name="${name}_bearing_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Servo motor + gearbox stack, coaxial with the joint axis and
+       offset to one side, as on a real harmonic-drive joint.
+       =============================================================== -->
+  <xacro:macro name="motor_can" params="name radius xyz rpy colour">
+    <visual name="${name}_motor">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <cylinder radius="${radius*1.16}" length="${radius*2.05}"/>
+      </geometry>
+      <material name="${name}_motor_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Encoder puck: small disc on the motor rear face. Represents the
+       absolute encoder whose feedback ros2_control exposes as the
+       joint position/velocity state interfaces.
+       =============================================================== -->
+  <xacro:macro name="encoder_puck" params="name radius xyz rpy colour">
+    <visual name="${name}_encoder">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <geometry>
+        <cylinder radius="${radius*0.62}" length="${radius*0.42}"/>
+      </geometry>
+      <material name="${name}_encoder_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Mounting plate at the distal end of a link.
+       =============================================================== -->
+  <xacro:macro name="mounting_plate" params="name radius z colour thickness:=0.010">
+    <visual name="${name}_plate">
+      <origin xyz="0 0 ${z}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${radius*1.28}" length="${thickness}"/>
+      </geometry>
+      <material name="${name}_plate_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       External cable conduit running along a link.
+       =============================================================== -->
+  <xacro:macro name="cable_run" params="name radius length colour">
+    <visual name="${name}_cable">
+      <origin xyz="${-radius*0.94} 0 ${length*0.52}" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="${radius*0.20}" length="${length*0.72}"/>
+      </geometry>
+      <material name="${name}_cable_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+  <!-- ===============================================================
+       Six-bolt circle. Positions hardcoded at 60 degree spacing
+       (cos/sin of 0, 60, 120, 180, 240, 300).
+       =============================================================== -->
+  <xacro:macro name="bolt_ring" params="name circle_r z colour bolt_r:=0.0045 bolt_h:=0.014">
+    <visual name="${name}_bolt_0">
+      <origin xyz="${circle_r} 0 ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_0_mat"><color rgba="${colour}"/></material>
+    </visual>
+    <visual name="${name}_bolt_1">
+      <origin xyz="${circle_r*0.5} ${circle_r*0.866} ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_1_mat"><color rgba="${colour}"/></material>
+    </visual>
+    <visual name="${name}_bolt_2">
+      <origin xyz="${-circle_r*0.5} ${circle_r*0.866} ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_2_mat"><color rgba="${colour}"/></material>
+    </visual>
+    <visual name="${name}_bolt_3">
+      <origin xyz="${-circle_r} 0 ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_3_mat"><color rgba="${colour}"/></material>
+    </visual>
+    <visual name="${name}_bolt_4">
+      <origin xyz="${-circle_r*0.5} ${-circle_r*0.866} ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_4_mat"><color rgba="${colour}"/></material>
+    </visual>
+    <visual name="${name}_bolt_5">
+      <origin xyz="${circle_r*0.5} ${-circle_r*0.866} ${z}" rpy="0 0 0"/>
+      <geometry><cylinder radius="${bolt_r}" length="${bolt_h}"/></geometry>
+      <material name="${name}_bolt_5_mat"><color rgba="${colour}"/></material>
+    </visual>
+  </xacro:macro>
+
+</robot>

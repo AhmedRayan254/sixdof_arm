@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_arm_control</name>
   <version>0.1.0</version>
-  <description>Controller configuration and test nodes for the 6-DOF arm.</description>
+  <description>Controller configuration, sensor nodes and test nodes for the 6-DOF arm.</description>
   <maintainer email="ahmed.rafat.rayan@gmail.com">ahmed</maintainer>
   <license>Apache-2.0</license>
 
@@ -12,6 +12,9 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>control_msgs</exec_depend>
   <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
 
   <exec_depend>robot_arm_description</exec_depend>
   <exec_depend>controller_manager</exec_depend>
