@@ -1,6 +1,6 @@
 # 6-DOF Robotic Arm — ROS 2 Humble + Gazebo Fortress
 
-A six-degree-of-freedom serial robotic arm, built from scratch and simulated in Gazebo Fortress. Every component is written manually and documented as it is built, so the whole system can be read, modified and debugged by hand.
+A six-degree-of-freedom industrial robotic arm, built from scratch and simulated in Gazebo Fortress with `ros2_control` and a full sensor suite. Every component is written manually and documented as it is built.
 
 Simulation only. No physical hardware is required.
 
@@ -15,11 +15,12 @@ The project is built in phases. Each phase must work before the next begins, and
 | | |
 |---|---|
 | Degrees of freedom | 6, all revolute |
-| Approximate reach | 0.85 m |
+| Reach, base_link to end_effector | 1.080 m |
 | Total mass | ~5.9 kg |
-| Link geometry | Cylinders — simple primitives, no CAD meshes |
+| Body | Composed primitives — joint housings, servo cans, encoder pucks, tool flange |
 | Control | `ros2_control` with `joint_trajectory_controller` |
 | Simulator | Gazebo Fortress (Ignition) |
+| Sensors | Encoders, IMU, wrist force-torque, motor current, motor temperature, limit/home switches |
 
 All dimensions and masses are engineering assumptions, chosen to be physically plausible rather than copied from a real product. They live as Xacro properties at the top of one file and can be changed in one place.
 
@@ -53,18 +54,24 @@ ros2_robot_arm_ws/
 │
 ├── docs/
 │   ├── simulation_and_testing.md    toolchain, setup, model tests
-│   └── ros2_control.md              control layer, controller tests
+│   ├── ros2_control.md              control layer, controller tests
+│   └── industrial_design.md         visual redesign and sensor suite
 │
 └── src/
     ├── robot_arm_description/       WHAT the robot is
     │   ├── package.xml
     │   ├── CMakeLists.txt
     │   ├── urdf/
-    │   │   ├── robot.urdf.xacro     geometry, links, joints, inertia
-    │   │   └── ros2_control.xacro   hardware interface declaration
+    │   │   ├── robot.urdf.xacro         links, joints, inertia, assembly
+    │   │   ├── materials.xacro          industrial colour palette
+    │   │   ├── industrial_parts.xacro   housing/motor/encoder/bolt macros
+    │   │   ├── sensors.xacro            IMU and force-torque sensors
+    │   │   └── ros2_control.xacro       hardware interface declaration
     │   ├── launch/
-    │   │   ├── display.launch.py    RViz + joint sliders
-    │   │   └── gazebo.launch.py     Fortress spawn, no control
+    │   │   ├── display.launch.py        RViz + joint sliders
+    │   │   └── gazebo.launch.py         Fortress spawn, no control
+    │   ├── worlds/
+    │   │   └── arm_world.sdf            world + sensor system plugins
     │   └── rviz/
     │       └── display.rviz
     │
@@ -74,13 +81,16 @@ ros2_robot_arm_ws/
         ├── config/
         │   └── controllers.yaml     controller definitions
         ├── launch/
-        │   └── arm_control.launch.py   Fortress + ros2_control
+        │   └── arm_control.launch.py   Fortress + ros2_control + sensors
         └── robot_arm_control/
             ├── joint_monitor.py        read joint states
             ├── test_single_joint.py    move one joint
             ├── test_all_joints.py      sweep every joint
             ├── test_trajectory.py      multi-joint motion
-            └── go_home.py              return to zero
+            ├── go_home.py              return to zero
+            ├── encoder_simulator.py    quantised/noisy encoder view
+            ├── motor_diagnostics.py    current + thermal model
+            └── limit_switches.py       end-of-travel and home switches
 ```
 
 Generated directories (`build/`, `install/`, `log/`) are not tracked by git.
@@ -89,10 +99,10 @@ Generated directories (`build/`, `install/`, `log/`) are not tracked by git.
 
 | Package | Build type | Contains | Changes when |
 |---|---|---|---|
-| `robot_arm_description` | `ament_cmake` | Data files only — URDF, RViz config | The robot's physical design changes |
+| `robot_arm_description` | `ament_cmake` | Data files only — URDF, worlds, RViz config | The robot's physical design changes |
 | `robot_arm_control` | `ament_python` | Python nodes with entry points | The way the robot is driven changes |
 
-The split matters because a description package can be reused with a completely different control stack, and because `ament_cmake` installs directories while `ament_python` registers executables. Mixing them into one package means neither job is done cleanly.
+The split matters because a description package can be reused with a completely different control stack, and because `ament_cmake` installs directories while `ament_python` registers executables.
 
 ---
 
@@ -106,7 +116,7 @@ The split matters because a description package can be reused with a completely 
                               └──────┬──────┘
                                      │ fixed
                               ┌──────┴──────┐
-                              │   link_6    │  0.07 m
+                              │   link_6    │  0.07 m  + tool flange
                               └──────┬──────┘
                             joint_6  ○ roll   (Z, ±180°)   ┐
                               ┌──────┴──────┐               │
@@ -130,7 +140,7 @@ The split matters because a description package can be reused with a completely 
                               └──────┬──────┘               │
                             joint_1  ○ base yaw (Z, ±180°) ┘
                               ┌──────┴──────┐
-                              │  base_link  │  0.06 m
+                              │  base_link  │  0.06 m  cast pedestal
                               └──────┬──────┘
                                      │ fixed
                                   ┌──┴──┐
@@ -139,6 +149,8 @@ The split matters because a description package can be reused with a completely 
 ```
 
 Nine frames: two fixed joints and six revolute joints. REP 103 convention — X forward, Y left, Z up, metres and radians throughout. Every link extends along its own +Z axis, so each joint origin sits at the parent link's length.
+
+**Reach:** `0.06 + 0.18 + 0.30 + 0.25 + 0.12 + 0.10 + 0.07 = 1.080 m` from `base_link` to `end_effector` at the zero pose. The sum of the six link lengths alone is 1.020 m; that figure excludes the base pedestal and is not what `tf2_echo base_link end_effector` reports.
 
 ### Joints
 
@@ -153,25 +165,79 @@ Nine frames: two fixed joints and six revolute joints. REP 103 convention — X 
 
 ### Links
 
-| Link | Radius | Length | Mass |
-|---|---|---|---|
-| base_link | 0.100 m | 0.06 m | 2.0 kg |
-| link_1 | 0.060 m | 0.18 m | 1.2 kg |
-| link_2 | 0.050 m | 0.30 m | 1.0 kg |
-| link_3 | 0.045 m | 0.25 m | 0.8 kg |
-| link_4 | 0.035 m | 0.12 m | 0.4 kg |
-| link_5 | 0.032 m | 0.10 m | 0.3 kg |
-| link_6 | 0.030 m | 0.07 m | 0.2 kg |
+| Link | Radius | Length | Mass | Visuals |
+|---|---|---|---|---|
+| base_link | 0.100 m | 0.06 m | 2.0 kg | 11 |
+| link_1 | 0.060 m | 0.18 m | 1.2 kg | 7 |
+| link_2 | 0.050 m | 0.30 m | 1.0 kg | 7 |
+| link_3 | 0.045 m | 0.25 m | 0.8 kg | 7 |
+| link_4 | 0.035 m | 0.12 m | 0.4 kg | 6 |
+| link_5 | 0.032 m | 0.10 m | 0.3 kg | 6 |
+| link_6 | 0.030 m | 0.07 m | 0.2 kg | 11 |
 
 Mass and radius both decrease toward the tool. Distal mass loads every joint below it, so real arms are always front-light.
+
+Each link carries a single **collision** cylinder and a single **inertial** block, but 6 to 11 **visual** primitives. Visual geometry has no effect on physics in Gazebo — only collision and inertial do — so the industrial body costs nothing in stability or real-time factor.
+
+---
+
+## Industrial Body
+
+The arm is composed from primitives rather than imported meshes, so the repository stays free of binary files and every dimension remains parametric.
+
+| Component | Representation |
+|---|---|
+| Structural tube | Cylinder, slightly thinner than the collision shape |
+| Joint housing | Larger cylinder aligned with the joint axis |
+| Servo + gearbox | Offset cylinder, coaxial with the joint |
+| Encoder | Small puck on the motor rear face |
+| Bearing ring | Thin bright ring at the housing parting line |
+| Mounting plate | Thin cylinder at the distal link end |
+| Cable conduit | Thin offset cylinder along the link |
+| Bolt circle | Six small cylinders at 60° spacing |
+| Tool flange | ISO 9409-1 style flat plate with pilot boss and bolt ring |
+| Base | Cast pedestal on a bolted floor plate with connector block |
+
+Colours follow a UR-style two-tone scheme: silver shells, graphite housings and motor caps, blue accent rings, machined-steel flange.
+
+**Gazebo Fortress ignores Gazebo Classic material syntax.** `<gazebo><material>Gazebo/Orange</material></gazebo>` silently does nothing. Colour comes from URDF `<color rgba>` (converted as `0.4·ambient + 0.8·diffuse`) with a Fortress-native `<gazebo><visual><material>` block adding specular and PBR metalness on top.
+
+---
+
+## Sensor Suite
+
+Six sensor types, split by how they are produced.
+
+### Simulated in Gazebo (new sensor + bridge)
+
+| Sensor | Topic | Type | Mounted on |
+|---|---|---|---|
+| IMU | `/imu` | `sensor_msgs/Imu` | `link_6` |
+| Wrist force-torque | `/wrist_ft` | `geometry_msgs/Wrench` | `joint_6` |
+
+These need SDF `<sensor>` blocks plus the matching system plugins, which are declared in `worlds/arm_world.sdf` rather than the URDF. Fortress has a known defect where a force-torque sensor declared only inside a xacro-loaded model never publishes.
+
+### Derived in ROS 2 (no Gazebo plugin, no bridge)
+
+| Sensor | Topics | Derived from |
+|---|---|---|
+| Encoders | `/encoder_states` | `/joint_states`, quantised to encoder counts + noise |
+| Motor current | `/motor_current/<joint>` | `I = τ / Kt` |
+| Motor temperature | `/motor_temperature/<joint>` | First-order thermal model on `I²R` |
+| Limit switches | `/limit_switch/<joint>/{lower,upper}` | Position vs joint limits |
+| Home switches | `/home_switch/<joint>` | Position vs zero |
+
+Plus two aggregate diagnostics topics: `/motor_diagnostics` and `/limit_switch_diagnostics`, both `diagnostic_msgs/DiagnosticArray`.
+
+These are pure ROS 2 subscribers on `/joint_states`. They add nothing to the Gazebo integration and cannot destabilise the control loop. In `ros2_control` the joint position and velocity state interfaces **are** the encoder, so deriving the rest from effort is both physically correct and zero-risk.
+
+**None of these nodes publish to `/joint_states`.** Two publishers on that topic means `robot_state_publisher` receives contradictory angles and the TF tree flickers.
 
 ---
 
 ## System Flow
 
 ### Shared front end
-
-Every mode starts the same way:
 
 ```
 robot.urdf.xacro
@@ -183,8 +249,6 @@ plain URDF (XML text)
 robot_description
 ```
 
-This happens at launch time, in memory. No intermediate file is written.
-
 ### Mode A — RViz with sliders (no physics)
 
 ```
@@ -195,9 +259,7 @@ joint_state_publisher_gui  ──/joint_states──▶  robot_state_publisher
                                                      RViz2
 ```
 
-The slider *asserts* an angle and everything downstream believes it. No gravity, no mass, no collisions. RViz will happily draw a physically impossible pose.
-
-Used to verify the **kinematic model**: joint axes, limits, reach, TF tree.
+The slider *asserts* an angle and everything downstream believes it. No gravity, no mass, no collisions. Used to verify the **kinematic model**: joint axes, limits, reach, TF tree.
 
 ### Mode B — Gazebo, no control
 
@@ -205,11 +267,9 @@ Used to verify the **kinematic model**: joint axes, limits, reach, TF tree.
 robot_state_publisher ──/robot_description──▶ ros_gz_sim create ──▶ ign gazebo
 ```
 
-The arm spawns and stands upright while paused. Pressing play makes it collapse — nothing holds the joints.
+The arm spawns and stands upright while paused. Pressing play makes it collapse — nothing holds the joints. Used to verify the **physical model**: mass, inertia, collision geometry, solver stability.
 
-Used to verify the **physical model**: mass, inertia, collision geometry, solver stability.
-
-### Mode C — Gazebo with ros2_control
+### Mode C — Gazebo with ros2_control and sensors
 
 ```
    test script
@@ -227,23 +287,22 @@ Used to verify the **physical model**: mass, inertia, collision geometry, solver
 └────────────┬─────────────┘
              │ ign_ros2_control/IgnitionSystem
              ▼
-┌──────────────────────────┐
-│   Gazebo Fortress joints │
-└────────────┬─────────────┘
+┌──────────────────────────┐        ┌────────────────────┐
+│   Gazebo Fortress joints │───────▶│ IMU, force-torque  │──▶ ros_gz_bridge
+└────────────┬─────────────┘        └────────────────────┘
              │ state interfaces
              ▼
 ┌──────────────────────────┐
-│ joint_state_broadcaster  │ ──/joint_states──▶
-└──────────────────────────┘
+│ joint_state_broadcaster  │ ──/joint_states──┬──▶ encoder_simulator
+└──────────────────────────┘                  ├──▶ motor_diagnostics
+                                              └──▶ limit_switches
 ```
-
-The arm now holds position against gravity and executes commanded trajectories.
 
 **The `controller_manager` runs inside the Gazebo process**, started by a plugin declared in the URDF. It is not a node you launch separately. Killing Gazebo kills control, and controllers cannot spawn until the robot exists in the simulator.
 
 ### Mode A and Mode C cannot run together
 
-Both `joint_state_publisher_gui` and `joint_state_broadcaster` publish `/joint_states`. Running both means `robot_state_publisher` receives contradictory angles. The `use_ros2_control` xacro argument switches between them.
+Both `joint_state_publisher_gui` and `joint_state_broadcaster` publish `/joint_states`. The `use_ros2_control` xacro argument switches between them.
 
 ---
 
@@ -308,10 +367,10 @@ Verify:
 ```bash
 ros2 pkg list | grep robot_arm
 ros2 pkg executables robot_arm_control
-ls install/robot_arm_description/share/robot_arm_description/
+ls install/robot_arm_description/share/robot_arm_description/urdf/
 ```
 
-Expected: both packages listed, five executables, and `launch  package.xml  rviz  urdf`.
+Expected: both packages, eight executables, and five `.xacro` files.
 
 **Source the workspace in every terminal, every time.** Sourcing is per-terminal, not per-machine.
 
@@ -334,25 +393,33 @@ Prints the nine-link tree from `world` to `end_effector`. If this fails, nothing
 ros2 launch robot_arm_description display.launch.py
 ```
 
-Two windows: RViz with the arm and axis triads, and a slider window. Dragging a slider rotates that joint immediately.
-
 ### Gazebo, model only
 
 ```bash
 ros2 launch robot_arm_description gazebo.launch.py
 ```
 
-Opens Fortress with `robot_arm` in the Entity Tree. Starts paused. Pressing play makes the arm collapse — expected, since no controllers are attached.
+Starts paused. Pressing play makes the arm collapse — expected, no controllers attached.
 
-### Gazebo with control
+### Gazebo with control and sensors
 
 ```bash
 ros2 launch robot_arm_control arm_control.launch.py
 ```
 
-Starts Fortress, bridges `/clock`, spawns the arm, then activates `joint_state_broadcaster` and `arm_controller`.
+Starts Fortress, bridges `/clock`, spawns the arm, activates `joint_state_broadcaster` and `arm_controller`, then starts the three derived sensor nodes.
 
-**The arm now stands upright and holds position.** That visual change is the clearest proof the control chain works.
+**The arm stands upright and holds position.** That visual change is the clearest proof the control chain works.
+
+Options:
+
+```bash
+# Different world
+ros2 launch robot_arm_control arm_control.launch.py world:=empty.sdf
+
+# Control only, no sensors
+ros2 launch robot_arm_control arm_control.launch.py use_sensors:=false
+```
 
 ---
 
@@ -376,7 +443,7 @@ ros2 run robot_arm_control test_trajectory
 ros2 run robot_arm_control go_home
 ```
 
-Raw trajectory without a script — note positions are **radians**:
+Raw trajectory without a script — positions are **radians**:
 
 ```bash
 ros2 topic pub --once /arm_controller/joint_trajectory \
@@ -385,6 +452,32 @@ ros2 topic pub --once /arm_controller/joint_trajectory \
     points: [{positions: [0.5, -0.3, 0.8, 0.0, 0.4, 0.0],
               time_from_start: {sec: 3}}]}"
 ```
+
+---
+
+## Reading the Sensors
+
+```bash
+# Aggregate diagnostics
+ros2 topic echo /motor_diagnostics --once
+ros2 topic echo /limit_switch_diagnostics --once
+
+# Per joint
+ros2 topic echo /motor_temperature/joint_2 --once
+ros2 topic echo /motor_current/joint_2 --once
+ros2 topic echo /limit_switch/joint_2/upper --once
+ros2 topic echo /home_switch/joint_2 --once
+
+# Gazebo-simulated
+ros2 topic echo /imu --once
+ros2 topic echo /wrist_ft --once
+
+# Encoder view vs ground truth
+ros2 topic echo /encoder_states --once
+ros2 topic echo /joint_states --once
+```
+
+Motor temperature rises slowly under sustained load — thermal time constants are on the order of 20 minutes, matching real servo motors. Run `test_trajectory` on a loop to see it climb.
 
 ---
 
@@ -404,19 +497,23 @@ Each mode verifies something the others cannot.
 # Model
 check_urdf /tmp/robot.urdf
 ros2 run tf2_tools view_frames
-ros2 run tf2_ros tf2_echo base_link end_effector   # 1.020 m at zero pose
+ros2 run tf2_ros tf2_echo base_link end_effector   # 1.080 m at zero pose
 
 # Control
 ros2 control list_controllers                       # both active
 ros2 control list_hardware_interfaces               # 6 command, 18 state
 ros2 topic hz /joint_states                         # ~50 Hz
 ros2 action list                                    # action server present
+
+# Sensors
+ros2 topic list | grep -E "motor|limit|home|imu|wrist_ft|encoder"
 ```
 
 Full procedures, with expected output for every command:
 
-- [docs/simulation_and_testing.md](docs/simulation_and_testing.md) — 16 model and simulator tests
-- [docs/ros2_control.md](docs/ros2_control.md) — 15 control tests
+- [docs/simulation_and_testing.md](docs/simulation_and_testing.md) — model and simulator tests
+- [docs/ros2_control.md](docs/ros2_control.md) — control tests
+- [docs/industrial_design.md](docs/industrial_design.md) — redesign and sensor tests
 
 ---
 
@@ -426,18 +523,21 @@ Full procedures, with expected output for every command:
 |---|---|
 | `ros2: command not found` | `source /opt/ros/humble/setup.bash` |
 | `Package 'robot_arm_*' not found` | Read the search path in the error. Workspace absent → source it. Present → build it. |
+| `Duplicate package names not supported` | A `backup_*` folder is inside the workspace — move it outside |
+| `No such file ... materials.xacro` | `$(find ...)` reads from `install/`, not `src/` — rebuild |
 | `ign: command not found` | `sudo apt install ignition-fortress` |
 | `gz` prints an unfamiliar menu | Gazebo Classic installed — `sudo apt remove --purge gazebo* libgazebo*` |
 | `unbound prefix` in xacro | A `xacro:` tag sits above the `<robot>` tag |
+| XML comment parse error | A comment contains `--`; XML forbids it |
 | `can't find '.../urdf'` during build | Empty dir lost on clone — `mkdir -p` it and add a `.gitkeep` |
 | `Failed to load system plugin` | `IGN_GAZEBO_SYSTEM_PLUGIN_PATH` not set to `/opt/ros/humble/lib` |
 | `controller manager not available` (loops) | The plugin never loaded — fix that error first |
 | Arm collapses with controllers active | Interfaces `[unclaimed]` — `arm_controller` failed to start |
 | Nothing moves, no error | `/clock` not bridged |
 | TF shows only 2 frames | Nothing publishing `/joint_states` |
+| No `/wrist_ft` topic | FT system plugin must be in the world SDF, not the URDF |
+| Robot renders grey in Gazebo | Classic `<material>Gazebo/…</material>` syntax — Fortress ignores it |
 | Black window, low FPS | `LIBGL_ALWAYS_SOFTWARE=1 ros2 launch ...` |
-
-Full error reference, including real failures from this build with their diagnosis, is in the docs above.
 
 ---
 
@@ -453,6 +553,7 @@ PHASE 6   Gazebo Fortress spawn                            ✓
 PHASE 7   ros2_control                                     ✓
 PHASE 8   Per-joint testing                                ✓
 PHASE 9   Trajectory control                               ✓
+PHASE 9b  Industrial redesign + sensor suite               ✓
 PHASE 10  Forward kinematics                               □
 PHASE 11  Inverse kinematics                               □
 PHASE 12  Workspace analysis                               □
@@ -478,6 +579,13 @@ PHASE 12  Workspace analysis                               □
 * [x] Single-joint test with limit checking
 * [x] All-joints sweep test
 * [x] Multi-waypoint trajectory test
+* [x] Industrial body — housings, motors, encoders, tool flange
+* [x] Fortress-native materials with PBR metalness
+* [x] Custom world with sensor system plugins
+* [x] IMU and wrist force-torque sensors
+* [x] Encoder quantisation and noise model
+* [x] Motor current and thermal model
+* [x] Limit and home switches
 * [x] Documentation
 * [ ] Forward kinematics
 * [ ] Inverse kinematics
@@ -491,7 +599,6 @@ PHASE 12  Workspace analysis                               □
 * Inverse kinematics — analytical solution for this wrist configuration
 * Workspace reach analysis and visualization
 * Gripper / end effector with its own control group
-* Replace primitive cylinders with meshes
 * Velocity and effort control modes alongside position
 * CI — `colcon build` and lint on every push
 
