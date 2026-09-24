@@ -1,1 +1,0 @@
-/home/ahmed/ros2_robot_arm_ws/build/robot_arm_description/ament_cmake_environment_hooks/local_setup.zsh
